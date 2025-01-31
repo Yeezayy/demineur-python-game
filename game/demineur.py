@@ -1,11 +1,14 @@
+import os
 from random import randint
 from tkinter import *
 import pygame
+from tkinter import PhotoImage
 
 score = 0
 GameOver = False
 
-def créer_terrainMiné(t, taille):
+
+def creer_terrainMine(t, taille):
     for i in range(taille):
         ligne = []
         for j in range(taille):
@@ -20,74 +23,114 @@ def pose_mine(t, x):
         b = randint(0, 7)
         t[a][b] = 1
 
-def affichage_ecran(event, t, i, j, score_points):
-    global score
-    global GameOver
 
-    carré = event.widget
-    texte_basique = carré.cget("text")
-
-    if GameOver is False and texte_basique == "":
-        bombes_voisines = 0
-        for x in range(max(0, i-1), min(8, i+2)):
-            for y in range(max(0, j-1), min(8, j+2)):
-                bombes_voisines += t[x][y]
-
-        carré.config(bg="saddlebrown", text=str(bombes_voisines))
-
-        score = score + 1
-        score_points.config(text="Score : {}".format(score))
-
-        if t[i][j] == 1:
-            GameOver = True
-            carré.config(bg="red")
-            print("GAME OVER ! Tu as touché une bombe !")
-            print("Ton score :", score)
-
-
-
-pygame.init() 
+pygame.init()
 pygame.mixer.init
 
 def jouer_musique():
-    pygame.mixer.music.load("C:/Users/Utilisateur/Desktop/Programmation/Projet_Ecole/demineur/son_demineur.wav")
+    current_dir = os.path.dirname(__file__)
+    chemin_son = os.path.join(current_dir, "assets", "explosion.mp3")
+    
+    pygame.mixer.music.load(chemin_son)
     pygame.mixer.music.play(loops=0)
 
-def configuration_fenêtre(fenêtre, t, score_points, taille):
+
+def reveler_cases_adjacent(t, boutons, i, j, taille):
+    pile = [(i, j)]
+    visites = set()
+
+    while pile:
+        x, y = pile.pop()
+
+        if (x, y) in visites:
+            continue
+        visites.add((x, y))
+
+        bombes_voisines = 0
+        for voisin_x in range(max(0, x - 1), min(taille, x + 2)):
+            for voisin_y in range(max(0, y - 1), min(taille, y + 2)):
+                bombes_voisines += t[voisin_x][voisin_y]
+
+        bouton = boutons[x][y]
+
+        if bouton.cget("text") == "": 
+            bouton.config(bg="saddlebrown", text=str(bombes_voisines) if bombes_voisines > 0 else "")
+
+        if bombes_voisines == 0:
+            for voisin_x in range(max(0, x - 1), min(taille, x + 2)):
+                for voisin_y in range(max(0, y - 1), min(taille, y + 2)):
+                    if (voisin_x, voisin_y) != visites:
+                        pile.append((voisin_x, voisin_y))
+
+
+def affichage_ecran(event, t, boutons, i, j, score_points, taille):
+    global score
+    global GameOver
+
+    carre = event.widget
+    texte_basique = carre.cget("text")
+
+    if GameOver is False and texte_basique == "":
+        bombes_voisines = 0
+        for x in range(max(0, i - 1), min(taille, i + 2)):
+            for y in range(max(0, j - 1), min(taille, j + 2)):
+                bombes_voisines += t[x][y]
+
+        if t[i][j] == 1:
+            GameOver = True
+            carre.config(bg="red")
+            jouer_musique()
+            print("GAME OVER ! Tu as touché une bombe !")
+            print("Ton score :", score)
+        else:
+            reveler_cases_adjacent(t, boutons, i, j, taille)
+            score += 1
+            score_points.config(text="Score : {}".format(score))
+
+
+def configuration_fenetre(fenetre, t, score_points, taille):
+    boutons = []
     for i in range(taille):
+        ligne_boutons = []
         for j in range(taille):
-            bouton = Button(fenêtre, width=5, height=2, bg='green', command=jouer_musique)
+            bouton = Button(fenetre, width=5, height=2, bg='green')
             bouton.grid(row=i, column=j)
-            bouton.bind("<Button-1>", lambda event, t=t, i=i, j=j: affichage_ecran(event, t, i, j, score_points))
+            bouton.bind("<Button-1>", lambda event, t=t, i=i, j=j: affichage_ecran(event, t, boutons, i, j, score_points, taille))
+            ligne_boutons.append(bouton)
+        boutons.append(ligne_boutons)
 
-def jouer_démineur(mode, taille, mines):
-    terrainMiné = []
-    créer_terrainMiné(terrainMiné, taille)
-    pose_mine(terrainMiné, mines) 
 
-    fenêtre = Tk()
-    fenêtre.title("Démineur [MODE {}]".format(mode))
-    score_points = Label(fenêtre, text="Score : {}".format(score))
+def jouer_demineur(mode, taille, mines):
+    terrainMine = []
+    creer_terrainMine(terrainMine, taille)
+    pose_mine(terrainMine, mines)
+
+    fenetre = Tk()
+    fenetre.title("Démineur [MODE {}]".format(mode))
+    score_points = Label(fenetre, text="Score : {}".format(score))
     score_points.grid(row=taille, column=0, columnspan=taille)
 
     def fermer_fenetre():
-        fenêtre.destroy()
+        fenetre.destroy()
 
-    fenêtre.protocol("WM_DELETE_WINDOW", fermer_fenetre)
-    configuration_fenêtre(fenêtre, terrainMiné, score_points, taille)
-    fenêtre.mainloop()
+    fenetre.protocol("WM_DELETE_WINDOW", fermer_fenetre)
+    configuration_fenetre(fenetre, terrainMine, score_points, taille)
+    fenetre.mainloop()
+
 
 def jouer_mode_facile():
     accueil.destroy()
-    jouer_démineur("DEBUTANT", 8, 8)
+    jouer_demineur("DEBUTANT", 8, 8)
+
 
 def jouer_mode_moyen():
     accueil.destroy()
-    jouer_démineur("PRO", 12, 12)
+    jouer_demineur("PRO", 12, 12)
+
 
 def jouer_mode_difficile():
     accueil.destroy()
-    jouer_démineur("HACKER", 16, 16)
+    jouer_demineur("HACKER", 16, 16)
 
 
 accueil = Tk()
@@ -95,8 +138,11 @@ accueil.title("PAGE D'ACCUEIL DEMINEUR")
 accueil.configure(bg="gray")
 accueil.minsize(500, 500)
 
-photo = PhotoImage(file="demineur.png")
-photo = photo.subsample(5, 5)  
+current_dir = os.path.dirname(__file__)
+image_path = os.path.join(current_dir, "assets", "demineur.png")
+
+photo = PhotoImage(file=image_path)
+photo = photo.subsample(4, 4)
 
 canvas = Canvas(accueil, width=photo.width(), height=photo.height(), bg='white')
 canvas.place(x=50, y=50)
